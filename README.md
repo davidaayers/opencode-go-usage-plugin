@@ -5,7 +5,7 @@ An [OpenCode](https://opencode.ai) TUI sidebar plugin that shows your OpenCode G
 ```
 Go Usage
 5h █▏░░░░░ wk ████▏░░ mo ███████
-22% · 2h  81% · 7d   100% · 28d
+22% · 2h   81% · 7d   100% · 28d
 ```
 
 - `Go Usage` sidebar block: three small gauges (5h / wk / mo) with eighth-block fills, percent + reset below each — shown in `opencode-go` sessions
