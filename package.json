@@ -4,6 +4,9 @@
   "description": "OpenCode TUI plugin: OpenCode Go plan usage (5h/weekly/monthly) from the official usage API",
   "license": "MIT",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     "./tui": "./src/go-usage.tsx"
   },
