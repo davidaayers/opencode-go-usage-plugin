@@ -1,6 +1,12 @@
 # opencode-go-usage-plugin
 
-OpenCode TUI plugin that shows your OpenCode Go plan usage (5h / weekly / monthly) from the official `GET https://opencode.ai/zen/go/v1/usage` endpoint — no dashboard scraping.
+An [OpenCode](https://opencode.ai) TUI sidebar plugin that shows your OpenCode Go plan usage (5h / weekly / monthly) from the official `GET https://opencode.ai/zen/go/v1/usage` endpoint — no dashboard scraping.
+
+```
+Go Usage
+5h █▏░░░░░ wk ████▏░░ mo ███████
+22% · 2h  81% · 7d   100% · 28d
+```
 
 - `Go Usage` sidebar block: three small gauges (5h / wk / mo) with eighth-block fills, percent + reset below each — shown in `opencode-go` sessions
 - Gauge/% color ramps with proximity to the limit: `success` <50% → `accent` 50–74% → `warning` 75–89% → `error` ≥90% or `rate-limited`
