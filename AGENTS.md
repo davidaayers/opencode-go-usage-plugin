@@ -4,7 +4,7 @@ OpenCode **TUI-only** plugin showing OpenCode Go plan usage. Single deliverable:
 
 ## Commands
 
-- `bun run typecheck` — the only check (`tsc --noEmit`). No test runner or linter is configured.
+- `pnpm check` — the only check (`pnpm exec tsc --noEmit`). No test runner or linter is configured.
 - `bun scratch-repro.tsx` — offscreen render harness. **Known harness limitations** (verified 2026-08-24):
   - Signal updates never propagate to captured frames — a `flag()` flip after mount still renders the mount-time frame. Verify dynamic layouts via **static fixtures** through the exported pure helpers (`GoUsageFormat`), not live state.
   - `createEffect` never fires under the harness's solid server runtime. The plugin kicks its first poll with a direct `untrack(refresh())` call; keep that — don't rely on effects for initial work.
