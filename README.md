@@ -54,6 +54,10 @@ bun scratch-repro.tsx   # headless render capture
 
 Single-file plugin: everything lives in [`src/go-usage.tsx`](src/go-usage.tsx).
 
+## Roadmap
+
+Cross-repository follow-up work is tracked in the [OpenCode Plugins project](https://github.com/users/davidaayers/projects/1).
+
 ## License
 
 [MIT](LICENSE) © 2026 David Ayers
