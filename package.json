@@ -9,10 +9,10 @@
     "access": "public"
   },
   "exports": {
-    "./tui": "./src/go-usage.tsx"
+    "./tui": "./dist/tui.js"
   },
   "files": [
-    "src/go-usage.tsx"
+    "dist"
   ],
   "keywords": [
     "opencode",
@@ -29,6 +29,8 @@
   "bugs": "https://github.com/davidaayers/opencode-go-usage-plugin/issues",
   "homepage": "https://github.com/davidaayers/opencode-go-usage-plugin#readme",
   "scripts": {
+    "build": "bun build.mjs",
+    "prepack": "bun build.mjs",
     "typecheck": "pnpm exec tsc --noEmit",
     "check": "pnpm typecheck"
   },

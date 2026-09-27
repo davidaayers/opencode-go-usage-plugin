@@ -39,6 +39,10 @@ jobs:
           node-version: 22.14.0
           registry-url: https://registry.npmjs.org
 
+      - name: Setup Bun
+        if: ${{ steps.release.outputs['.--release_created'] == 'true' }}
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+
       - name: Publish to npm
         if: ${{ steps.release.outputs['.--release_created'] == 'true' }}
         run: |

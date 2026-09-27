@@ -1,6 +1,6 @@
 # AGENTS.md
 
-OpenCode **TUI-only** plugin showing OpenCode Go plan usage. Single deliverable: `src/go-usage.tsx`. Install happens via `file://` path in `~/.config/opencode/tui.json`; user docs live in README.md.
+OpenCode **TUI-only** plugin showing OpenCode Go plan usage. Source is `src/go-usage.tsx`; the published entrypoint is the compiled `dist/tui.js` built by `bun build.mjs`. Install happens via the npm package or a `file://` path in `~/.config/opencode/tui.json`; user docs live in README.md.
 
 ## Commands
 
@@ -18,7 +18,9 @@ OpenCode **TUI-only** plugin showing OpenCode Go plan usage. Single deliverable:
 - Bare string children in `<text>` are fine only when the text is on one line with braces (`<text>{"x"}</text>`); prefer braced expressions everywhere.
 - Module shape: default export `{ id, tui }` satisfying `TuiPluginModule`. The `id` belongs ONLY on the module export — the object passed to `api.slots.register()` forbids `id` (`id?: never`) and will fail typecheck if included.
 - This module is TUI-side only. It must never be listed in `opencode.jsonc`'s `plugin` array (the server will throw on it); it loads exclusively from `tui.json`.
-- Dependencies are host-provided and resolved at plugin-load time (`@opentui/core`, `@opentui/solid`, `solid-js`, `@opencode-ai/plugin`). Keep the runtime dependency surface empty/minimal — there is no bundler. Node built-ins (`node:fs`, `node:path`, `node:os`, `node:process`) are fine and must be imported explicitly.
+- Ship **compiled** `dist/tui.js`; never point `exports["./tui"]` at raw `.tsx`. The host rewrites bare host imports (`@opentui/core`, `@opentui/solid`, `@opentui/solid/jsx-runtime`, `solid-js`) to its own copies only when they appear **literally** in the source. A raw `.tsx` under `node_modules` never reveals the Bun-injected JSX runtime import, so it falls back to filesystem resolution — and OpenCode installs npm plugins production-only, so there is no `node_modules` and it fails (`Cannot find module '@opentui/solid/jsx-dev-runtime'`). That is why the `file://` dev path works but the published `.tsx` did not.
+- Runtime imports stay in `devDependencies` — the host provides them at load, so the published package needs no `dependencies`. `@opencode-ai/plugin/tui` is type-only (erased). Keep the runtime surface minimal. Node built-ins (`node:fs`, `node:path`, `node:os`, `node:process`) are fine and must be imported explicitly.
+- Build with `bun build.mjs` (`bun run build`, also run via `prepack`). Keep the output **unminified**: the host's import scanner is regex-based (`from "..."` with whitespace), and minification drops that space, which silently disables the rewrite and breaks loading. `build.mjs` sets `NODE_ENV=production` so the prod JSX runtime is emitted.
 - All incoming data is untrusted: validate shapes before use (`parseWindow`, `parseUsage`, `readGoKey`); invalid input degrades gracefully, never throws.
 - Colors come only from theme tokens via `api.theme.current` — no hardcoded ANSI colors. The usage scale: `success` <50%, `accent` 50–74%, `warning` 75–89%, `error` ≥90% or `rate-limited` (`OK_AT`/`WARN_AT`/`DANGER_AT` constants); labels/resets/header use `textMuted`/`text`.
 - The sidebar slot is a **fixed 42 cols** (`width={42}` in `packages/tui/src/routes/session/sidebar.tsx`), 37 usable after padding (`2 + 2 + 1`). Gauge columns are sized so the widest line (`100% · 28d` = 10 chars) fits: label(2) + space + bar(7) = 10; 3 × 10 + 2 gaps = 32.
