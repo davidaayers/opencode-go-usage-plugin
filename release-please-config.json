@@ -1,5 +1,4 @@
 {
-  "bootstrap-sha": "fe9c26f3d64aaf900e9082639c2216b3d83da48b",
   "include-component-in-tag": false,
   "include-v-in-tag": true,
   "separate-pull-requests": false,
