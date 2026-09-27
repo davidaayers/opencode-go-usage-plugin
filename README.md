@@ -53,7 +53,7 @@ bun run typecheck
 bun scratch-repro.tsx   # headless render capture
 ```
 
-Source lives in [`src/go-usage.tsx`](src/go-usage.tsx); the published entrypoint is the compiled `dist/tui.js`, built by [`build.mjs`](build.mjs). The build deliberately leaves the host imports (`@opentui/core`, `@opentui/solid`, `solid-js`) external and unminified so OpenCode's loader can rewrite them to its own copies.
+Source lives in [`src/go-usage.tsx`](src/go-usage.tsx); the published entrypoint is the compiled `dist/tui.js`, built by [`build.mjs`](build.mjs). The build runs `@opentui/solid`'s Solid transform so JSX compiles to reactive bindings (not eager `jsx()` calls), leaves the host imports (`@opentui/core`, `@opentui/solid`, `solid-js`) external, and stays unminified so OpenCode's loader can rewrite them to its own copies.
 
 ## Roadmap
 
