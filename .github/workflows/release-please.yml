@@ -190,6 +190,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
+          gh label create 'autorelease: tagged' \
+            --color ededed \
+            --description 'Release PR has been tagged' \
+            --force
           gh pr edit "$PR_NUMBER" \
             --remove-label 'autorelease: pending' \
             --add-label 'autorelease: tagged'
