@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v0.1.3...v0.1.4) (2026-09-27)
+
+
+### Fixed
+
+* compile JSX with the Solid transform so the UI is reactive ([da78e57](https://github.com/davidaayers/opencode-go-usage-plugin/commit/da78e571fa5368e27c9ee9a1ee00520dfbedb4ec))
+
 ## [0.1.3](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v0.1.2...v0.1.3) (2026-09-27)
 
 
