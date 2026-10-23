@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v1.0.0...v1.0.1) (2026-10-23)
+
+
+### Fixed
+
+* prepend sidebar usage and collapse hidden content ([52cdf3d](https://github.com/davidaayers/opencode-go-usage-plugin/commit/52cdf3df05a6321901dd2910c5914239f7e98dad))
+* prepend sidebar usage and collapse hidden content ([5ba3027](https://github.com/davidaayers/opencode-go-usage-plugin/commit/5ba3027ed11ce874e5b9b529162a8eed796732cb))
+* restore automatic release version increments ([#7](https://github.com/davidaayers/opencode-go-usage-plugin/issues/7)) ([5ec6f27](https://github.com/davidaayers/opencode-go-usage-plugin/commit/5ec6f279abe993f45c0bb6ff76e39c086a7c0f54))
+
 ## [1.0.0](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v0.1.4...v1.0.0) (2026-10-23)
 
 
