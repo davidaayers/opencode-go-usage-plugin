@@ -5,6 +5,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v0.1.4...v1.0.0) (2026-10-23)
+
+
+### Added
+
+* migrate the TUI plugin to OpenCode v2 ([004a075](https://github.com/davidaayers/opencode-go-usage-plugin/commit/004a0758b5a49e3d972f96c93627ab9ac4532225))
+
+
+### Changed
+
+* adopt canonical TUI package template ([20d0946](https://github.com/davidaayers/opencode-go-usage-plugin/commit/20d09460e6898b0782d9740759a530a76faeb5fe))
+
 ## [Unreleased]
 
 ### Breaking Changes
