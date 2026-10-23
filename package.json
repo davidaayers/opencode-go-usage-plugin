@@ -28,12 +28,16 @@
   },
   "bugs": "https://github.com/davidaayers/opencode-go-usage-plugin/issues",
   "homepage": "https://github.com/davidaayers/opencode-go-usage-plugin#readme",
+  "engines": {
+    "opencode": ">=2.1.3"
+  },
   "scripts": {
     "build": "bun build.mjs",
     "prepack": "bun build.mjs",
-    "typecheck": "pnpm exec tsc --noEmit",
+    "test": "bun test src",
+    "typecheck": "tsc --noEmit",
     "test:pack": "bun test --conditions=browser packed-install.test.mjs",
-    "check": "pnpm typecheck && pnpm test:pack"
+    "check": "pnpm typecheck && pnpm test && pnpm test:pack"
   },
   "devDependencies": {
     "@opencode/plugin": "2.1.3",

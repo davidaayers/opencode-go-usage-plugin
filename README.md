@@ -32,35 +32,37 @@ Restart OpenCode after installing. The block appears once the session uses an `o
 
 ### From source
 
-Run `pnpm install && pnpm build`, then load the compiled entrypoint from the global **`~/.config/opencode/cli.json`**, not the server configuration:
+Run `pnpm install && pnpm build`, then load the repository directory from the global **`~/.config/opencode/cli.json`**, not the server configuration:
 
 ```jsonc
 // ~/.config/opencode/cli.json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "plugins": [
-    "file:///absolute/path/to/opencode-go-usage-plugin/dist/tui.js"
+    "/absolute/path/to/opencode-go-usage-plugin"
   ]
 }
 ```
+
+The build generates an ignored root `tui.js` re-export for OpenCode 2.1.3's local-directory resolver. npm installs use the sole `./tui` export pointing to `dist/tui.js`; only `dist` is published. Do not also load a discovery wrapper for the same plugin.
 
 ## How It Works
 
 - **Usage windows**: polls the official endpoint using the active OpenCode Console credential from the connected server's credential API every 60s and on session events. A legacy `opencode-go` key is used only when Console is not connected. No legacy `auth.json` access is needed. Each window reports `percent` (0–100), `status` (`ok` / `rate-limited`), and `resetsAt`.
 - **Rendering**: SolidJS JSX via `@opentui/solid`, registered into V2's `sidebar.content` and `prompt.footer.status` slots. Colors come from the active OpenCode theme.
-- **Compact mode**: V2 does not expose sidebar visibility preferences. For a manually hidden sidebar on a wide terminal, use `{ "package": "…/dist/tui.js", "options": { "compact": true } }` in `plugins`.
+- **Compact mode**: V2 does not expose sidebar visibility preferences. For a manually hidden sidebar on a wide terminal, use `{ "package": "/absolute/path/to/opencode-go-usage-plugin", "options": { "compact": true } }` in `plugins`.
 - **Sidebar geometry**: the session sidebar is a fixed 42 columns (37 usable after padding); the gauge columns are sized so the widest possible row (`100% · 28d`) fits exactly.
 
 ## Development
 
 ```sh
-bun install
-bun run build           # compile src/go-usage.tsx -> dist/tui.js (run by prepack)
-bun run typecheck
+pnpm install --frozen-lockfile
+pnpm build              # compile src/tui.tsx -> dist/tui.js + local tui.js bridge
+pnpm check              # typecheck, formatting tests, packed render/update/cleanup
 bun scratch-repro.tsx   # headless render capture
 ```
 
-Source lives in [`src/go-usage.tsx`](src/go-usage.tsx); the published entrypoint is the compiled `dist/tui.js`, built by [`build.mjs`](build.mjs). The build runs `@opentui/solid`'s Solid transform so JSX compiles to reactive bindings (not eager `jsx()` calls), leaves the host imports (`@opentui/core`, `@opentui/solid`, `solid-js`) external, and stays unminified so OpenCode's loader can rewrite them to its own copies.
+Source lives in `src/tui.tsx`; the published entrypoint is the compiled `dist/tui.js`, built by `build.mjs`. The build runs `@opentui/solid`'s Solid transform so JSX compiles to reactive bindings (not eager `jsx()` calls), leaves the host imports (`@opencode/plugin`, `effect`, `@opentui/core`, `@opentui/solid`, `solid-js`) external, and stays unminified so OpenCode's loader can rewrite them to its own copies. Generated files are ignored and replaced atomically; do not commit them.
 
 ## Roadmap
 

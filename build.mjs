@@ -1,17 +1,13 @@
-import { readFileSync, rmSync } from "node:fs"
-import process from "node:process"
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 
-rmSync("dist", { recursive: true, force: true })
-
 const result = await Bun.build({
-  entrypoints: ["src/go-usage.tsx"],
-  outdir: "dist",
+  entrypoints: ["src/tui.tsx"],
   naming: "tui.js",
   target: "bun",
   format: "esm",
-  define: { "process.env.NODE_ENV": JSON.stringify("production") },
-  external: ["@opencode/plugin", "@opentui/core", "@opentui/solid", "solid-js"],
+  external: ["@opencode/plugin", "effect", "@opentui/core", "@opentui/solid", "solid-js"],
+  minify: false,
   plugins: [createSolidTransformPlugin()],
 })
 
@@ -20,7 +16,23 @@ if (!result.success) {
   process.exit(1)
 }
 
-const output = readFileSync("dist/tui.js", "utf8")
+const output = await result.outputs[0].text()
 if (/jsxDEV|jsx-runtime/.test(output) || !/effect as _\$effect/.test(output) || !/insert as _\$insert/.test(output)) {
   throw new Error("TUI build must contain reactive Solid bindings, not eager JSX runtime calls")
+}
+
+mkdirSync("dist", { recursive: true })
+// Local directory loading in OpenCode 2.1.3 resolves <directory>/tui,
+// whereas npm loading resolves the package's ./tui export.
+for (const [entry, contents] of [
+  ["dist/tui.js", output],
+  ["tui.js", 'export { default } from "./dist/tui.js"\n'],
+]) {
+  const temporary = `${entry}.${process.pid}.tmp`
+  try {
+    writeFileSync(temporary, contents)
+    renameSync(temporary, entry)
+  } finally {
+    rmSync(temporary, { force: true })
+  }
 }

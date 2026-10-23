@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import { ensureRuntimePluginSupport } from "@opentui/solid/runtime-plugin-support/configure"
+import * as tuiRuntime from "@opencode/plugin/tui"
 
 test("packed V2 plugin renders usage, updates, and cleans up", async () => {
   const directory = mkdtempSync(join(tmpdir(), "go-usage-pack-"))
@@ -19,8 +20,22 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     const installed = join(consumer, "node_modules", "@davidaayers", "opencode-go-usage-plugin")
     const pkg = JSON.parse(readFileSync(join(installed, "package.json"), "utf8"))
     expect(pkg.dependencies).toBeUndefined()
-    ensureRuntimePluginSupport()
+    expect(pkg.exports).toEqual({ "./tui": "./dist/tui.js" })
+    expect(pkg.engines.opencode).toBe(">=2.1.3")
+    const built = readFileSync(join(installed, pkg.exports["./tui"]), "utf8")
+    expect(built).toContain('from "@opencode/plugin/tui"')
+    for (const hostImport of ["@opentui/core", "@opentui/solid", "solid-js"]) {
+      expect(built).toContain(`from "${hostImport}"`)
+    }
+    expect(built).not.toMatch(/jsxDEV|jsx-runtime|node_modules\//)
+    const local = Bun.resolveSync(join(import.meta.dir, "tui"), import.meta.dir)
+    expect(local).toBe(join(import.meta.dir, "tui.js"))
+    expect(packed[0].files.map((file) => file.path)).not.toContain("tui.js")
+    ensureRuntimePluginSupport({ additional: { "@opencode/plugin/tui": tuiRuntime } })
     const plugin = (await import(join(installed, pkg.exports["./tui"]))).default
+    const localPlugin = (await import(local)).default
+    expect(localPlugin.id).toBe(plugin.id)
+    expect(typeof localPlugin.setup).toBe("function")
     expect(plugin.id).toBe("opencode-go-usage")
     const slots = new Map()
     const listeners = new Set()
@@ -32,7 +47,11 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
       expect(url).toBe("https://opencode.ai/zen/go/v1/usage")
       expect(init.headers.Authorization).toBe("Bearer fixture-oauth")
       requests++
-      return Response.json({ usage: { rolling: { status: "ok", percent, resetsAt: "" } } })
+      return Response.json({ usage: {
+        rolling: { status: "ok", percent, resetsAt: "" },
+        weekly: { status: "ok", percent: 57, resetsAt: "" },
+        monthly: { status: "rate-limited", percent: 100, resetsAt: "" },
+      } })
     }
     const api = {
       options: { compact: true },
@@ -57,6 +76,8 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await setup.renderOnce()
     expect(setup.captureCharFrame()).toContain("42%")
+    expect(setup.captureCharFrame()).toContain("57%")
+    expect(setup.captureCharFrame()).toContain("100%")
     percent = 81
     for (const listener of listeners) listener({ details: { type: "session.usage.updated", data: { sessionID: "test" } } })
     await new Promise((resolve) => setTimeout(resolve, 20))

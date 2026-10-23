@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
-import type { Plugin } from "@opencode/plugin/tui"
+import { Plugin } from "@opencode/plugin/tui"
 import type { Context as TuiPluginApi } from "@opencode/plugin/tui/context"
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 import { Show } from "solid-js"
@@ -307,7 +307,7 @@ export const GoUsageFormat = {
   compactText,
 }
 
-const plugin = {
+export default Plugin.define({
   id: "opencode-go-usage",
   setup(api) {
     const sidebar = api.ui.slot({
@@ -320,6 +320,4 @@ const plugin = {
     })
     return () => { sidebar(); compact() }
   },
-} satisfies Plugin.Definition
-
-export default plugin
+})

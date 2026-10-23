@@ -2,7 +2,7 @@
 import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import process from "node:process"
-import plugin, { GoUsageFormat } from "./src/go-usage.tsx"
+import plugin, { GoUsageFormat } from "./src/tui.tsx"
 
 const theme = {
   accent: RGBA.fromHex("#ff00ff"),
