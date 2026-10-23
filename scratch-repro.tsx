@@ -2,35 +2,47 @@
 import { RGBA } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import process from "node:process"
-import plugin, { GoUsageFormat } from "./src/go-usage.tsx"
+import plugin, { GoUsageFormat } from "./src/tui.tsx"
 
 const theme = {
   accent: RGBA.fromHex("#ff00ff"),
   warning: RGBA.fromHex("#ff9900"),
   error: RGBA.fromHex("#ff0000"),
+  success: RGBA.fromHex("#00ff00"),
   text: RGBA.fromHex("#e6e6e6"),
   textMuted: RGBA.fromHex("#808080"),
 }
 
-type SlotFn = (ctx: unknown, props: { session_id: string }) => unknown
+const v2Theme = {
+  text: {
+    base: theme.text,
+    muted: theme.textMuted,
+    action: { primary: { base: theme.accent } },
+    feedback: { success: { base: theme.success }, warning: { base: theme.warning }, error: { base: theme.error } },
+  },
+} as any
+
+type SlotFn = (props: { sessionID: string }) => unknown
 
 function fakeApi() {
   const slots: Record<string, SlotFn> = {}
   const api = {
-    theme: { current: theme },
-    state: {
+    options: {},
+    theme: v2Theme,
+    client: { credential: { list: async () => [] } },
+    data: {
+      listen: () => () => undefined,
       session: {
         get: () => ({}),
-        messages: () => [{ role: "assistant", providerID: "opencode-go" }],
+        message: { list: () => [{ type: "assistant", model: { providerID: "opencode-go", id: "fixture" } }] },
       },
-      config: { model: "opencode-go/kimi-k3" },
     },
-    kv: { get: () => "auto" },
-    event: { on: () => () => undefined },
     renderer: { requestRender: () => undefined },
-    slots: {
-      register: (registration: { slots: Record<string, SlotFn> }) => {
-        Object.assign(slots, registration.slots)
+    ui: {
+      model: { current: () => undefined },
+      slot: (registration: { append: string; render: SlotFn }) => {
+        slots[registration.append] = registration.render
+        return () => delete slots[registration.append]
       },
     },
   }
@@ -58,7 +70,7 @@ function GaugeRow(props: { items: ReadonlyArray<{ short: string; window: { statu
     <box flexDirection="row" columnGap={1}>
       {props.items.map(({ short, window }) => {
         const bar = GoUsageFormat.gauge(window.percent / 100, 7)
-        const color = GoUsageFormat.levelColor(window, theme)
+        const color = GoUsageFormat.levelColor(window, v2Theme)
         return (
           <box flexDirection="column">
             <box flexDirection="row">
@@ -98,12 +110,12 @@ async function main() {
 
   // 2. Live slot mount: proves the plugin registers, mounts, fetches, and does not crash.
   const { api, slots } = fakeApi()
-  await (plugin as any).tui(api)
-  const sidebar = () => slots.sidebar_content({}, { session_id: "ses_scratch" }) as any
-  const compact = () => slots.session_prompt_right({}, { session_id: "ses_scratch" }) as any
+  const cleanup = await (plugin as any).setup(api)
+  const sidebar = () => slots["sidebar.content"]({ sessionID: "ses_scratch" }) as any
+  const compact = () => slots["prompt.footer.status"]({ sessionID: "ses_scratch" }) as any
   const liveSetup = await testRender(() => (
     <box gap={1} paddingLeft={2} paddingTop={1} width={40}>
-      <text fg={theme.text}>{`live slots (fetch fires, frame stays at mount state):`}</text>
+      <text fg={theme.text}>{`live slots (no credentials fixture):`}</text>
       {sidebar()}
       <text fg={theme.text}>{`compact:`}</text>
       {compact()}
@@ -114,6 +126,7 @@ async function main() {
   console.log(liveSetup.captureCharFrame())
   await new Promise((resolve) => setTimeout(resolve, 3000))
   liveSetup.renderer.destroy()
+  cleanup()
   console.log("live mount survived fetch cycle without crash")
   process.exit(0)
 }

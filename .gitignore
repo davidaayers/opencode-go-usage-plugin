@@ -1,3 +1,5 @@
 node_modules/
 dist/
+tui.js
+*.tmp
 .DS_Store
