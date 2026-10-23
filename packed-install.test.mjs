@@ -21,7 +21,7 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     const pkg = JSON.parse(readFileSync(join(installed, "package.json"), "utf8"))
     expect(pkg.dependencies).toBeUndefined()
     expect(pkg.exports).toEqual({ "./tui": "./dist/tui.js" })
-    expect(pkg.engines.opencode).toBe(">=2.1.3")
+    expect(pkg.engines.opencode).toBe(">=2.1.3 <3")
     const built = readFileSync(join(installed, pkg.exports["./tui"]), "utf8")
     expect(built).toContain('from "@opencode/plugin/tui"')
     for (const hostImport of ["@opentui/core", "@opentui/solid", "solid-js"]) {

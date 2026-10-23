@@ -5,6 +5,19 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking Changes
+
+- Prepare 1.0.0 for OpenCode 2.x only (minimum 2.1.3; OpenCode 3.x is not supported).
+- Replace the V1 plugin API and configuration with `Plugin.define` and global `cli.json` loading.
+- OpenCode 1.x users must pin `@davidaayers/opencode-go-usage-plugin@0.1.4`, the last V1 release.
+
+### Changed
+
+- Standardize the Solid-transformed `src/tui.tsx` build, host-provided runtimes, packed verification, and generated local-directory entry.
+- Read the active OpenCode Console credential through the V2 API, preserving usage API error details.
+
 ## [0.1.4](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v0.1.3...v0.1.4) (2026-09-27)
 
 
@@ -18,8 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 * ship compiled dist entry so npm plugin loads ([42f6f30](https://github.com/davidaayers/opencode-go-usage-plugin/commit/42f6f305f67fe52845b8bf4068f8ab832532a999))
-
-## [Unreleased]
 
 ## [0.1.2] - 2026-08-28
 

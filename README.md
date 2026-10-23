@@ -2,11 +2,22 @@
 
 An [OpenCode](https://opencode.ai) TUI sidebar plugin that shows your OpenCode Go plan usage (5h / weekly / monthly) from the official usage API — no dashboard scraping.
 
-```
+```text
 Go Usage
 5h █▏░░░░░ wk ████▏░░ mo ███████
 22% · 2h   81% · 7d   100% · 28d
 ```
+
+## OpenCode compatibility
+
+**Plugin 1.x supports OpenCode 2.x only, starting at 2.1.3.** OpenCode 1.x and OpenCode 2.0–2.1.2 are not supported by this release line.
+
+| Plugin version                                                                                         | OpenCode version          |
+| ------------------------------------------------------------------------------------------------------ | ------------------------- |
+| 1.x                                                                                                    | 2.1.3 or newer within 2.x |
+| [0.1.4](https://www.npmjs.com/package/@davidaayers/opencode-go-usage-plugin/v/0.1.4) — last V1 release | 1.x                       |
+
+Still using OpenCode 1.x? Pin `@davidaayers/opencode-go-usage-plugin@0.1.4` and keep that release's V1 configuration. Do not use the V2 `cli.json` instructions below with OpenCode 1.x. Upgrading the plugin to 1.x requires upgrading OpenCode too.
 
 ## Features
 
@@ -19,56 +30,84 @@ Go Usage
 
 ## Install
 
-Requires OpenCode **2.1.3 or newer**. Add the package to `~/.config/opencode/cli.json`:
+Requires OpenCode **2.1.3 or newer within 2.x**. Add the package to `~/.config/opencode/cli.json`:
 
 ```json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["@davidaayers/opencode-go-usage-plugin"]
+  "plugins": ["@davidaayers/opencode-go-usage-plugin@^1.0.0"]
 }
 ```
 
-Restart OpenCode after installing. The block appears once the session uses an `opencode-go` model. V1 releases do not run in V2.
+Restart OpenCode after installing. The gauges appear once the session uses an `opencode-go` model.
 
 ### From source
 
-Run `pnpm install && pnpm build`, then load the repository directory from the global **`~/.config/opencode/cli.json`**, not the server configuration:
+Run `pnpm install --frozen-lockfile && pnpm build`, then load the repository directory from global `~/.config/opencode/cli.json`, not the server configuration:
 
 ```jsonc
 // ~/.config/opencode/cli.json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": [
-    "/absolute/path/to/opencode-go-usage-plugin"
-  ]
+  "plugins": ["/absolute/path/to/opencode-go-usage-plugin"],
 }
 ```
 
-The build generates an ignored root `tui.js` re-export for OpenCode 2.1.3's local-directory resolver. npm installs use the sole `./tui` export pointing to `dist/tui.js`; only `dist` is published. Do not also load a discovery wrapper for the same plugin.
+The build generates an ignored root `tui.js` re-export for OpenCode 2.1.3's local-directory resolver. npm installs use the sole `./tui` export pointing to `dist/tui.js`; only `dist` is published. Remove any old discovery wrapper for this plugin under `~/.config/opencode/plugins/` when switching to the direct directory entry so it is not loaded twice.
+
+## Configuration
+
+Pass options using the object form in global `~/.config/opencode/cli.json`. The `package` value can be the npm package or a local repository directory:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": [
+    {
+      "package": "@davidaayers/opencode-go-usage-plugin@^1.0.0",
+      "options": {
+        "compact": true,
+      },
+    },
+  ],
+}
+```
+
+| Option    | Type      | Default | Description                                                                         |
+| --------- | --------- | ------- | ----------------------------------------------------------------------------------- |
+| `compact` | `boolean` | `false` | Force the compact prompt line on wide terminals when the sidebar is manually hidden |
+
+The compact line appears automatically on narrow terminals and in child sessions. V2 does not expose the user's sidebar visibility preference to plugins; use `compact: true` when hiding the sidebar manually on a wide terminal.
 
 ## How It Works
 
 - **Usage windows**: polls the official endpoint using the active OpenCode Console credential from the connected server's credential API every 60s and on session events. A legacy `opencode-go` key is used only when Console is not connected. No legacy `auth.json` access is needed. Each window reports `percent` (0–100), `status` (`ok` / `rate-limited`), and `resetsAt`.
-- **Rendering**: SolidJS JSX via `@opentui/solid`, registered into V2's `sidebar.content` and `prompt.footer.status` slots. Colors come from the active OpenCode theme.
-- **Compact mode**: V2 does not expose sidebar visibility preferences. For a manually hidden sidebar on a wide terminal, use `{ "package": "/absolute/path/to/opencode-go-usage-plugin", "options": { "compact": true } }` in `plugins`.
+- **Rendering**: Solid JSX via `@opentui/solid`, registered into `sidebar.content` and `prompt.footer.status` through `@opencode/plugin/tui`. Colors come from the active OpenCode theme.
 - **Sidebar geometry**: the session sidebar is a fixed 42 columns (37 usable after padding); the gauge columns are sized so the widest possible row (`100% · 28d`) fits exactly.
 
 ## Development
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm build              # compile src/tui.tsx -> dist/tui.js + local tui.js bridge
-pnpm check              # typecheck, formatting tests, packed render/update/cleanup
-bun scratch-repro.tsx   # headless render capture
+pnpm check
+pnpm build
 ```
 
-Source lives in `src/tui.tsx`; the published entrypoint is the compiled `dist/tui.js`, built by `build.mjs`. The build runs `@opentui/solid`'s Solid transform so JSX compiles to reactive bindings (not eager `jsx()` calls), leaves the host imports (`@opencode/plugin`, `effect`, `@opentui/core`, `@opentui/solid`, `solid-js`) external, and stays unminified so OpenCode's loader can rewrite them to its own copies. Generated files are ignored and replaced atomically; do not commit them.
+`pnpm check` runs typecheck, unit tests, and the packed-install render/update/cleanup test.
+
+Source lives in `src/tui.tsx`. `build.mjs` applies the Solid transform and generates `dist/tui.js` plus the root `tui.js` local-loading bridge; `prepack` runs the build automatically. Output stays unminified, and the plugin API, Effect, Solid, and OpenTUI runtimes remain external and host-provided. Generated files are ignored and replaced atomically; do not hand-edit or commit them.
+
+Run `bun scratch-repro.tsx` for the fixture-based headless render harness.
 
 ## Roadmap
 
 Cross-repository follow-up work is tracked in the [OpenCode Plugins project](https://github.com/users/davidaayers/projects/1).
 
-## Changelog
+## Releases
+
+Releases are managed by [Release Please](https://github.com/googleapis/release-please) from Conventional Commit messages. Merging a Release Please pull request bumps the version, updates `CHANGELOG.md`, creates the GitHub release and tag, and publishes the package to npm.
+
+The 1.0.0 release is explicitly targeted using `release-as` in `release-please-config.json`. Remove that one-time override after the 1.0.0 release PR is merged; leave the historical release manifest for Release Please to update.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
