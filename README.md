@@ -12,36 +12,43 @@ Go Usage
 
 - **Plan gauges** — three eighth-block gauges (5h / wk / mo) sized to the sidebar, with percent and reset countdown beneath each
 - **Proximity colors** — gauge and percent ramp through theme tokens as limits approach: `success` <50% → `accent` 50–74% → `warning` 75–89% → `error` ≥90% or `rate-limited`
-- **Compact prompt line** — `Go month 100%` in the prompt bar when the sidebar is hidden, showing the binding constraint
-- **Official API** — polls `GET https://opencode.ai/zen/go/v1/usage` with your existing Go key; zero config, no page scraping
+- **Compact prompt line** — `Go month 100%` on narrow terminals (or with `compact: true`), showing the binding constraint
+- **Official API** — polls `GET https://opencode.ai/zen/go/v1/usage` with your active OpenCode Console login (or a legacy Go key); zero config, no page scraping
 - **Live updates** — 60s polling plus refresh on message/session events
-- **Silent by design** — hidden entirely when no `opencode-go` key is present or the session is not using Go
+- **Silent by design** — hidden entirely when no OpenCode credential is present or the session is not using Go
 
 ## Install
 
-```sh
-opencode plugin --global @davidaayers/opencode-go-usage-plugin
+Requires OpenCode **2.1.3 or newer**. Add the package to `~/.config/opencode/cli.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["@davidaayers/opencode-go-usage-plugin"]
+}
 ```
 
-Or from inside OpenCode: press `ctrl+p` → "Install Plugin" → `@davidaayers/opencode-go-usage-plugin`. Restart OpenCode and the block appears in the sidebar once the session uses an `opencode-go` model.
+Restart OpenCode after installing. The block appears once the session uses an `opencode-go` model. V1 releases do not run in V2.
 
 ### From source
 
-OpenCode TUI plugins load from the `plugin` array in **`~/.config/opencode/tui.json`** (or a project-level `tui.json`) — *not* from `opencode.jsonc`, whose `plugin` array is server-side only. Adding a TUI-only module to `opencode.jsonc` will make the server fail to load it.
+Run `pnpm install && pnpm build`, then load the compiled entrypoint from the global **`~/.config/opencode/cli.json`**, not the server configuration:
 
 ```jsonc
-// ~/.config/opencode/tui.json
+// ~/.config/opencode/cli.json
 {
-  "plugin": [
-    "file:///absolute/path/to/opencode-go-usage-plugin/src/go-usage.tsx"
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": [
+    "file:///absolute/path/to/opencode-go-usage-plugin/dist/tui.js"
   ]
 }
 ```
 
 ## How It Works
 
-- **Usage windows**: polls the official endpoint (Bearer auth with the `opencode-go` key from `~/.local/share/opencode/auth.json`) every 60s and on message/session events. Each window reports `percent` (0–100), `status` (`ok` / `rate-limited`), and `resetsAt`.
-- **Rendering**: SolidJS JSX via `@opentui/solid`, registered into the `sidebar_content` and `session_prompt_right` slots through [`@opencode-ai/plugin/tui`](https://www.npmjs.com/package/@opencode-ai/plugin). Colors come from the active OpenCode theme.
+- **Usage windows**: polls the official endpoint using the active OpenCode Console credential from the connected server's credential API every 60s and on session events. A legacy `opencode-go` key is used only when Console is not connected. No legacy `auth.json` access is needed. Each window reports `percent` (0–100), `status` (`ok` / `rate-limited`), and `resetsAt`.
+- **Rendering**: SolidJS JSX via `@opentui/solid`, registered into V2's `sidebar.content` and `prompt.footer.status` slots. Colors come from the active OpenCode theme.
+- **Compact mode**: V2 does not expose sidebar visibility preferences. For a manually hidden sidebar on a wide terminal, use `{ "package": "…/dist/tui.js", "options": { "compact": true } }` in `plugins`.
 - **Sidebar geometry**: the session sidebar is a fixed 42 columns (37 usable after padding); the gauge columns are sized so the widest possible row (`100% · 28d`) fits exactly.
 
 ## Development

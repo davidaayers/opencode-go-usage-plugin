@@ -1,13 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
-import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
+import type { Plugin } from "@opencode/plugin/tui"
+import type { Context as TuiPluginApi } from "@opencode/plugin/tui/context"
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 import { Show } from "solid-js"
-import { readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
-import process from "node:process"
 
 type WindowKey = "rolling" | "weekly" | "monthly"
 
@@ -25,7 +22,7 @@ type FetchState =
   | { kind: "ready"; usage: GoUsage }
   | { kind: "error"; message: string }
 
-type ThemeTokens = TuiPluginApi["theme"]["current"]
+type ThemeTokens = TuiPluginApi["theme"]
 
 const USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 const POLL_MS = 60_000
@@ -46,19 +43,17 @@ const WINDOWS: ReadonlyArray<{ key: WindowKey; label: string; short: string }> =
 
 // --- auth ---
 
-function authPath(): string {
-  const dataHome = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share")
-  return join(dataHome, "opencode", "auth.json")
-}
-
-function readGoKey(): string | undefined {
-  try {
-    const raw: unknown = JSON.parse(readFileSync(authPath(), "utf8"))
-    const key = (raw as Record<string, { key?: unknown }> | null)?.["opencode-go"]?.key
-    return typeof key === "string" && key.length > 0 ? key : undefined
-  } catch {
-    return undefined
-  }
+// The Go provider uses the OpenCode integration, so its active credential is
+// the Console login (OAuth) or a Console service-account key. Older setups
+// stored a separate opencode-go API key; fall back to that only when Console
+// is not connected.
+async function readGoKey(api: TuiPluginApi): Promise<string | undefined> {
+  const credentials = await api.client.credential.list()
+  const active = (integrationID: string) =>
+    credentials.find((entry) => entry.integrationID === integrationID && entry.active)?.value
+  const value = active("opencode") ?? active("opencode-go")
+  if (value?.type === "oauth") return value.access.length > 0 ? value.access : undefined
+  return value?.type === "key" && value.key.length > 0 ? value.key : undefined
 }
 
 // --- fetch + parse ---
@@ -90,8 +85,21 @@ async function fetchUsage(key: string): Promise<GoUsage> {
     headers: { Authorization: `Bearer ${key}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  if (!response.ok) throw new Error(await errorMessage(response))
   return parseUsage(await response.json())
+}
+
+// The API explains rejected keys (for example an expired key) in its error
+// body. Surface that instead of a bare status so the sidebar is actionable.
+async function errorMessage(response: Response): Promise<string> {
+  const status = `HTTP ${response.status}`
+  try {
+    const body = (await response.json()) as { error?: { message?: unknown } } | null
+    const message = body?.error?.message
+    return typeof message === "string" && message.length > 0 ? `${status}: ${message}` : status
+  } catch {
+    return status
+  }
 }
 
 // --- formatting ---
@@ -129,10 +137,10 @@ function gauge(fraction: number, width: number): { fill: string; track: string }
 }
 
 function levelColor(window: UsageWindow, theme: ThemeTokens) {
-  if (window.status === "rate-limited" || window.percent >= DANGER_AT) return theme.error
-  if (window.percent >= WARN_AT) return theme.warning
-  if (window.percent >= OK_AT) return theme.accent
-  return theme.success
+  if (window.status === "rate-limited" || window.percent >= DANGER_AT) return theme.text.feedback.error.base
+  if (window.percent >= WARN_AT) return theme.text.feedback.warning.base
+  if (window.percent >= OK_AT) return theme.text.action.primary.base
+  return theme.text.feedback.success.base
 }
 
 function compactText(state: FetchState): string {
@@ -148,37 +156,38 @@ function compactText(state: FetchState): string {
 // --- session gating ---
 
 function isGoSession(api: TuiPluginApi, sessionID: string): boolean {
-  const messages = api.state.session.messages(sessionID)
+  const messages = api.data.session.message.list(sessionID)
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
-    if (message.role === "assistant" && message.providerID) return message.providerID === "opencode-go"
+    if (message.type === "assistant") return message.model.providerID === "opencode-go"
   }
-  const model = api.state.session.get(sessionID)?.model
+  const model = api.data.session.get(sessionID)?.model
   if (model?.providerID) return model.providerID === "opencode-go"
-  return api.state.config.model?.startsWith("opencode-go/") ?? false
+  return api.ui.model.current()?.providerID === "opencode-go"
 }
 
 function isSidebarVisible(api: TuiPluginApi, sessionID: string, width: number): boolean {
-  if (api.state.session.get(sessionID)?.parentID) return false
-  return api.kv.get<"auto" | "hide">("sidebar", "auto") === "auto" && width > 120
+  if (api.data.session.get(sessionID)?.parentID) return false
+  return api.options.compact !== true && width > 120
 }
 
 // --- polling ---
 
-function createUsagePolling(api: TuiPluginApi, sessionID: string, enabled: () => boolean) {
+function createUsagePolling(api: TuiPluginApi, sessionID: () => string, enabled: () => boolean) {
   const [state, setState] = createSignal<FetchState>({ kind: "loading" })
   let disposed = false
   let inFlight: Promise<void> | undefined
   let refreshAgain = false
 
   const runRefresh = async () => {
-    if (!enabled() || !isGoSession(api, sessionID)) return
-    const key = readGoKey()
-    if (!key) {
-      setState({ kind: "noauth" })
-      return
-    }
+    if (!enabled() || !isGoSession(api, sessionID())) return
     try {
+      const key = await readGoKey(api)
+      if (disposed) return
+      if (!key) {
+        setState({ kind: "noauth" })
+        return
+      }
       const usage = await fetchUsage(key)
       if (disposed) return
       setState({ kind: "ready", usage })
@@ -209,12 +218,15 @@ function createUsagePolling(api: TuiPluginApi, sessionID: string, enabled: () =>
     if (enabled()) untrack(() => void refresh())
   })
   const timer = setInterval(() => void refresh(), POLL_MS)
-  const offMessage = api.event.on("message.updated", () => void refresh())
-  const offSession = api.event.on("session.updated", () => void refresh())
+  const offSession = api.data.listen(({ details }) => {
+    if (
+      (details.type === "session.usage.updated" || details.type === "session.step.ended" || details.type === "session.model.selected") &&
+      details.data.sessionID === sessionID()
+    ) void refresh()
+  })
   onCleanup(() => {
     disposed = true
     clearInterval(timer)
-    offMessage()
     offSession()
   })
 
@@ -225,24 +237,24 @@ function createUsagePolling(api: TuiPluginApi, sessionID: string, enabled: () =>
 
 function UsageGauge(props: { label: string; window: UsageWindow | undefined; theme: ThemeTokens }) {
   const bar = () => gauge(props.window ? props.window.percent / 100 : 0, GAUGE_WIDTH)
-  const color = () => (props.window ? levelColor(props.window, props.theme) : props.theme.textMuted)
+  const color = () => (props.window ? levelColor(props.window, props.theme) : props.theme.text.muted)
   return (
     <box flexDirection="column">
       <box flexDirection="row">
-        <text fg={props.theme.textMuted}>{`${props.label} `}</text>
+        <text fg={props.theme.text.muted}>{`${props.label} `}</text>
         <text fg={color()}>{bar().fill}</text>
-        <text fg={props.theme.textMuted}>{bar().track}</text>
+        <text fg={props.theme.text.muted}>{bar().track}</text>
       </box>
       <box flexDirection="row">
         <text fg={color()}>{props.window ? percentLabel(props.window.percent) : "--"}</text>
-        <text fg={props.theme.textMuted}>{props.window ? ` · ${shortReset(props.window.resetsAt)}` : ""}</text>
+        <text fg={props.theme.text.muted}>{props.window ? ` · ${shortReset(props.window.resetsAt)}` : ""}</text>
       </box>
     </box>
   )
 }
 
 function SidebarView(props: { api: TuiPluginApi; sessionID: string }) {
-  const state = createUsagePolling(props.api, props.sessionID, () => true)
+  const state = createUsagePolling(props.api, () => props.sessionID, () => true)
 
   const visible = createMemo(() => isGoSession(props.api, props.sessionID) && state().kind !== "noauth")
 
@@ -261,11 +273,11 @@ function SidebarView(props: { api: TuiPluginApi; sessionID: string }) {
   return (
     <box flexDirection="column">
       <Show when={visible()} fallback={<box />}>
-        <text fg={props.api.theme.current.text} attributes={TextAttributes.BOLD}>{"Go Usage"}</text>
-        <Show when={gauges().length > 0} fallback={<text fg={props.api.theme.current.textMuted}>{fallbackText(state())}</text>}>
+        <text fg={props.api.theme.text.base} attributes={TextAttributes.BOLD}>{"Go Usage"}</text>
+        <Show when={gauges().length > 0} fallback={<text fg={props.api.theme.text.muted}>{fallbackText(state())}</text>}>
           <box flexDirection="row" columnGap={1}>
             {gauges().map(({ short, window }) => (
-              <UsageGauge label={short} window={window} theme={props.api.theme.current} />
+              <UsageGauge label={short} window={window} theme={props.api.theme} />
             ))}
           </box>
         </Show>
@@ -277,12 +289,12 @@ function SidebarView(props: { api: TuiPluginApi; sessionID: string }) {
 function CompactView(props: { api: TuiPluginApi; sessionID: string }) {
   const dimensions = useTerminalDimensions()
   const sidebarHidden = createMemo(() => !isSidebarVisible(props.api, props.sessionID, dimensions().width))
-  const state = createUsagePolling(props.api, props.sessionID, sidebarHidden)
+  const state = createUsagePolling(props.api, () => props.sessionID, sidebarHidden)
 
   return (
     <box>
       <Show when={sidebarHidden() && state().kind === "ready"} fallback={<box />}>
-        <text fg={props.api.theme.current.textMuted}>{compactText(state())}</text>
+        <text fg={props.api.theme.text.muted}>{compactText(state())}</text>
       </Show>
     </box>
   )}
@@ -295,23 +307,19 @@ export const GoUsageFormat = {
   compactText,
 }
 
-const tui: TuiPlugin = async (api) => {
-  api.slots.register({
-    order: 160,
-    slots: {
-      sidebar_content(_ctx, slotProps) {
-        return <SidebarView api={api} sessionID={slotProps.session_id} />
-      },
-      session_prompt_right(_ctx, slotProps) {
-        return <CompactView api={api} sessionID={slotProps.session_id} />
-      },
-    },
-  })
-}
-
-const plugin: TuiPluginModule & { id: string } = {
+const plugin = {
   id: "opencode-go-usage",
-  tui,
-}
+  setup(api) {
+    const sidebar = api.ui.slot({
+      append: "sidebar.content",
+      render: (props) => <SidebarView api={api} sessionID={props.sessionID} />,
+    })
+    const compact = api.ui.slot({
+      append: "prompt.footer.status",
+      render: (props) => <Show when={props.sessionID} fallback={<box />}>{(id) => <CompactView api={api} sessionID={id()} />}</Show>,
+    })
+    return () => { sidebar(); compact() }
+  },
+} satisfies Plugin.Definition
 
 export default plugin

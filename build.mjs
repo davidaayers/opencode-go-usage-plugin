@@ -11,7 +11,7 @@ const result = await Bun.build({
   target: "bun",
   format: "esm",
   define: { "process.env.NODE_ENV": JSON.stringify("production") },
-  external: ["@opencode-ai/plugin", "@opentui/core", "@opentui/solid", "solid-js"],
+  external: ["@opencode/plugin", "@opentui/core", "@opentui/solid", "solid-js"],
   plugins: [createSolidTransformPlugin()],
 })
 
