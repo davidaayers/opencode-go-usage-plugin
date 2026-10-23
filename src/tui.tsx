@@ -271,7 +271,7 @@ function SidebarView(props: { api: TuiPluginApi; sessionID: string }) {
   })
 
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" visible={visible()}>
       <Show when={visible()} fallback={<box />}>
         <text fg={props.api.theme.text.base} attributes={TextAttributes.BOLD}>{"Go Usage"}</text>
         <Show when={gauges().length > 0} fallback={<text fg={props.api.theme.text.muted}>{fallbackText(state())}</text>}>
@@ -290,10 +290,11 @@ function CompactView(props: { api: TuiPluginApi; sessionID: string }) {
   const dimensions = useTerminalDimensions()
   const sidebarHidden = createMemo(() => !isSidebarVisible(props.api, props.sessionID, dimensions().width))
   const state = createUsagePolling(props.api, () => props.sessionID, sidebarHidden)
+  const visible = createMemo(() => isGoSession(props.api, props.sessionID) && sidebarHidden() && state().kind === "ready")
 
   return (
-    <box>
-      <Show when={sidebarHidden() && state().kind === "ready"} fallback={<box />}>
+    <box visible={visible()}>
+      <Show when={visible()} fallback={<box />}>
         <text fg={props.api.theme.text.muted}>{compactText(state())}</text>
       </Show>
     </box>
@@ -311,12 +312,12 @@ export default Plugin.define({
   id: "opencode-go-usage",
   setup(api) {
     const sidebar = api.ui.slot({
-      append: "sidebar.content",
+      prepend: "sidebar.content",
       render: (props) => <SidebarView api={api} sessionID={props.sessionID} />,
     })
     const compact = api.ui.slot({
       append: "prompt.footer.status",
-      render: (props) => <Show when={props.sessionID} fallback={<box />}>{(id) => <CompactView api={api} sessionID={id()} />}</Show>,
+      render: (props) => <Show when={props.sessionID} fallback={<box visible={false} />}>{(id) => <CompactView api={api} sessionID={id()} />}</Show>,
     })
     return () => { sidebar(); compact() }
   },
