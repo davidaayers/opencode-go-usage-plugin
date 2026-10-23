@@ -4,9 +4,29 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { RGBA } from "@opentui/core"
-import { testRender } from "@opentui/solid"
+import { testRender, createElement, insert, setProp } from "@opentui/solid"
 import { ensureRuntimePluginSupport } from "@opentui/solid/runtime-plugin-support/configure"
 import * as tuiRuntime from "@opencode/plugin/tui"
+import { createSignal } from "solid-js"
+
+function betweenSiblings(render) {
+  const parent = createElement("box")
+  setProp(parent, "flexDirection", "column")
+  setProp(parent, "gap", 1)
+  for (const child of ["BEFORE", render, "AFTER"]) {
+    if (typeof child === "function") insert(parent, child, null)
+    else {
+      const text = createElement("text")
+      setProp(text, "content", child)
+      insert(parent, text)
+    }
+  }
+  return parent
+}
+
+function expectCollapsed(setup) {
+  expect(setup.captureCharFrame().split("\n").map((line) => line.trimEnd()).join("\n").trim()).toBe("BEFORE\n\nAFTER")
+}
 
 test("packed V2 plugin renders usage, updates, and cleans up", async () => {
   const directory = mkdtempSync(join(tmpdir(), "go-usage-pack-"))
@@ -38,6 +58,7 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     expect(typeof localPlugin.setup).toBe("function")
     expect(plugin.id).toBe("opencode-go-usage")
     const slots = new Map()
+    const [providerID, setProviderID] = createSignal("opencode-go")
     const listeners = new Set()
     const color = RGBA.fromHex("#ffffff")
     const feedback = Object.fromEntries(["success", "warning", "error"].map((key) => [key, { base: color }]))
@@ -60,19 +81,35 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
         { integrationID: "opencode", active: true, value: { type: "oauth", access: "fixture-oauth", refresh: "fixture-refresh", expires: 9999999999999, methodID: "device" } },
       ] } },
       ui: {
-        slot: (entry) => { slots.set(entry.append, entry.render); return () => slots.delete(entry.append) },
+        slot: (entry) => {
+          const name = entry.prepend ?? entry.append
+          if (name === "sidebar.content") {
+            expect(entry.prepend).toBe(name)
+            expect(entry.append).toBeUndefined()
+          } else {
+            expect(entry.append).toBe("prompt.footer.status")
+            expect(entry.prepend).toBeUndefined()
+          }
+          slots.set(name, entry.render)
+          return () => slots.delete(name)
+        },
         model: { current: () => undefined },
       },
       data: {
         listen: (callback) => { listeners.add(callback); return () => listeners.delete(callback) },
-        session: { get: () => ({ model: { providerID: "opencode-go", id: "fixture" } }), message: { list: () => [] } },
+        session: { get: () => ({ model: { providerID: providerID(), id: "fixture" } }), message: { list: () => [] } },
       },
       theme: { text: { base: color, muted: color, action: { primary: { base: color } }, feedback } },
       renderer: { requestRender() {} },
     }
     cleanup = await plugin.setup(api)
     expect([...slots.keys()]).toEqual(["sidebar.content", "prompt.footer.status"])
-    setup = await testRender(() => slots.get("sidebar.content")({ sessionID: "test" }), { width: 42, height: 5 })
+    setProviderID("other")
+    setup = await testRender(() => betweenSiblings(() => slots.get("sidebar.content")({ sessionID: "test" })), { width: 42, height: 10 })
+    await setup.renderOnce()
+    expectCollapsed(setup)
+    setProviderID("opencode-go")
+    for (const listener of listeners) listener({ details: { type: "session.model.selected", data: { sessionID: "test" } } })
     await new Promise((resolve) => setTimeout(resolve, 20))
     await setup.renderOnce()
     expect(setup.captureCharFrame()).toContain("42%")
@@ -83,6 +120,10 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await setup.renderOnce()
     expect(setup.captureCharFrame()).toContain("81%")
+    setProviderID("other")
+    await setup.renderOnce()
+    expectCollapsed(setup)
+    setProviderID("opencode-go")
     expect(requests).toBeGreaterThanOrEqual(2)
     globalThis.fetch = async () =>
       Response.json(
@@ -106,13 +147,21 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     setup.renderer.destroy()
     setup = undefined
     expect(listeners.size).toBe(0)
-    setup = await testRender(() => slots.get("prompt.footer.status")({ sessionID: "test" }), { width: 80, height: 3 })
+    setup = await testRender(() => betweenSiblings(() => slots.get("prompt.footer.status")({ sessionID: "test" })), { width: 80, height: 7 })
     await new Promise((resolve) => setTimeout(resolve, 20))
     await setup.renderOnce()
     expect(setup.captureCharFrame()).toContain("Go 5h 81%")
+    setProviderID("other")
+    await setup.renderOnce()
+    expectCollapsed(setup)
     setup.renderer.destroy()
     setup = undefined
     expect(listeners.size).toBe(0)
+    setup = await testRender(() => betweenSiblings(() => slots.get("prompt.footer.status")({})), { width: 80, height: 7 })
+    await setup.renderOnce()
+    expectCollapsed(setup)
+    setup.renderer.destroy()
+    setup = undefined
     cleanup()
     cleanup = undefined
     expect(slots.size).toBe(0)
