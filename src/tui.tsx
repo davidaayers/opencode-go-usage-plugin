@@ -30,9 +30,12 @@ const FETCH_TIMEOUT_MS = 10_000
 const OK_AT = 50
 const WARN_AT = 75
 const DANGER_AT = 90
-// Sidebar is fixed 42 cols (37 usable after padding). Widest column content is
-// line 2: "100% · 28d" = 10 chars; label(2) + space(1) + bar(7) = 10 matches it.
-const GAUGE_WIDTH = 7
+// Match the total gauge-row allocation in the context and Codex plugins.
+// Each 10-cell column fits "100% · 28d"; longer reset text is truncated.
+const LAYOUT_WIDTH = 32
+const COLUMN_GAP = 1
+const COLUMN_WIDTH = (LAYOUT_WIDTH - 2 * COLUMN_GAP) / 3
+const GAUGE_WIDTH = COLUMN_WIDTH - 3
 const EIGHTHS = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 
 const WINDOWS: ReadonlyArray<{ key: WindowKey; label: string; short: string }> = [
@@ -238,17 +241,26 @@ function createUsagePolling(api: TuiPluginApi, sessionID: () => string, enabled:
 function UsageGauge(props: { label: string; window: UsageWindow | undefined; theme: ThemeTokens }) {
   const bar = () => gauge(props.window ? props.window.percent / 100 : 0, GAUGE_WIDTH)
   const color = () => (props.window ? levelColor(props.window, props.theme) : props.theme.text.muted)
+  const percent = () => props.window ? percentLabel(props.window.percent) : "--"
+  const reset = () => {
+    const value = props.window ? shortReset(props.window.resetsAt) : ""
+    const suffix = value ? ` · ${value}` : ""
+    const available = COLUMN_WIDTH - percent().length
+    return suffix.length > available ? `${suffix.slice(0, available - 1)}…` : suffix
+  }
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" width={COLUMN_WIDTH} flexShrink={0}>
       <box flexDirection="row">
         <text fg={props.theme.text.muted}>{`${props.label} `}</text>
-        <text fg={color()}>{bar().fill}</text>
-        <text fg={props.theme.text.muted}>{bar().track}</text>
+        <text width={GAUGE_WIDTH} flexShrink={0}>
+          <span style={{ fg: color() }}>{bar().fill}</span>
+          <span style={{ fg: props.theme.text.muted }}>{bar().track}</span>
+        </text>
       </box>
-      <box flexDirection="row">
-        <text fg={color()}>{props.window ? percentLabel(props.window.percent) : "--"}</text>
-        <text fg={props.theme.text.muted}>{props.window ? ` · ${shortReset(props.window.resetsAt)}` : ""}</text>
-      </box>
+      <text width={COLUMN_WIDTH} wrapMode="none" truncate>
+        <span style={{ fg: color() }}>{percent()}</span>
+        <span style={{ fg: props.theme.text.muted }}>{reset()}</span>
+      </text>
     </box>
   )
 }
@@ -275,7 +287,7 @@ function SidebarView(props: { api: TuiPluginApi; sessionID: string }) {
       <Show when={visible()} fallback={<box />}>
         <text fg={props.api.theme.text.base} attributes={TextAttributes.BOLD}>{"Go Usage"}</text>
         <Show when={gauges().length > 0} fallback={<text fg={props.api.theme.text.muted}>{fallbackText(state())}</text>}>
-          <box flexDirection="row" columnGap={1}>
+          <box flexDirection="row" width={LAYOUT_WIDTH} columnGap={COLUMN_GAP}>
             {gauges().map(({ short, window }) => (
               <UsageGauge label={short} window={window} theme={props.api.theme} />
             ))}

@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { RGBA } from "@opentui/core"
@@ -33,6 +33,17 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
   const originalFetch = globalThis.fetch
   let setup
   let cleanup
+  const frames = {}
+  const expectGauge = (name) => {
+    const frame = setup.captureCharFrame()
+    frames[name] = frame
+    const row = frame.split("\n").find((line) => line.startsWith("5h "))?.trimEnd()
+    expect(row).toBeDefined()
+    expect(row.length).toBe(32)
+    expect(row.slice(11, 14)).toBe("wk ")
+    expect(row.slice(22, 25)).toBe("mo ")
+    for (const start of [3, 14, 25]) expect(row.slice(start, start + 7)).toMatch(/^[█░▏▎▍▌▋▊▉]{7}$/)
+  }
   try {
     const packed = JSON.parse(execFileSync("npm", ["pack", "--json", "--pack-destination", directory], { cwd: import.meta.dir, encoding: "utf8" }))
     const consumer = join(directory, "consumer")
@@ -63,13 +74,14 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     const color = RGBA.fromHex("#ffffff")
     const feedback = Object.fromEntries(["success", "warning", "error"].map((key) => [key, { base: color }]))
     let percent = 42
+    let resetDays = 28
     let requests = 0
     globalThis.fetch = async (url, init) => {
       expect(url).toBe("https://opencode.ai/zen/go/v1/usage")
       expect(init.headers.Authorization).toBe("Bearer fixture-oauth")
       requests++
       return Response.json({ usage: {
-        rolling: { status: "ok", percent, resetsAt: "" },
+        rolling: { status: "ok", percent, resetsAt: new Date(Date.now() + resetDays * 86_400_000).toISOString() },
         weekly: { status: "ok", percent: 57, resetsAt: "" },
         monthly: { status: "rate-limited", percent: 100, resetsAt: "" },
       } })
@@ -105,7 +117,7 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     cleanup = await plugin.setup(api)
     expect([...slots.keys()]).toEqual(["sidebar.content", "prompt.footer.status"])
     setProviderID("other")
-    setup = await testRender(() => betweenSiblings(() => slots.get("sidebar.content")({ sessionID: "test" })), { width: 42, height: 10 })
+    setup = await testRender(() => betweenSiblings(() => slots.get("sidebar.content")({ sessionID: "test" })), { width: 37, height: 10 })
     await setup.renderOnce()
     expectCollapsed(setup)
     setProviderID("opencode-go")
@@ -115,11 +127,25 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     expect(setup.captureCharFrame()).toContain("42%")
     expect(setup.captureCharFrame()).toContain("57%")
     expect(setup.captureCharFrame()).toContain("100%")
+    expectGauge("three-gauges")
+    for (const value of [0, 100]) {
+      percent = value
+      resetDays = 1000
+      for (const listener of listeners) listener({ details: { type: "session.usage.updated", data: { sessionID: "test" } } })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      await setup.renderOnce()
+      expectGauge(`${value}-percent-long-reset`)
+      const rows = setup.captureCharFrame().split("\n").map((line) => line.trimEnd())
+      expect(rows.find((line) => line.startsWith(`${value}% · `)).length).toBeLessThanOrEqual(32)
+      expect(rows.find((line) => line.startsWith("5h ")).slice(3, 10)).toBe((value === 0 ? "░" : "█").repeat(7))
+      if (value === 100) expect(setup.captureCharFrame()).toContain("100% · 10…")
+    }
     percent = 81
     for (const listener of listeners) listener({ details: { type: "session.usage.updated", data: { sessionID: "test" } } })
     await new Promise((resolve) => setTimeout(resolve, 20))
     await setup.renderOnce()
     expect(setup.captureCharFrame()).toContain("81%")
+    expectGauge("updated-gauges")
     setProviderID("other")
     await setup.renderOnce()
     expectCollapsed(setup)
@@ -144,6 +170,8 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await setup.renderOnce()
     expect(setup.captureCharFrame()).toContain("81%")
+    expectGauge("missing-windows")
+    expect(setup.captureCharFrame()).toContain("--")
     setup.renderer.destroy()
     setup = undefined
     expect(listeners.size).toBe(0)
@@ -166,6 +194,9 @@ test("packed V2 plugin renders usage, updates, and cleans up", async () => {
     cleanup = undefined
     expect(slots.size).toBe(0)
   } finally {
+    if (process.env.OPENCODE_TEST_EVIDENCE_DIR) {
+      writeFileSync(join(process.env.OPENCODE_TEST_EVIDENCE_DIR, "go-packed-frames.json"), JSON.stringify(frames, null, 2))
+    }
     setup?.renderer.destroy()
     cleanup?.()
     globalThis.fetch = originalFetch
