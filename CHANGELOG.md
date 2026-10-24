@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v1.0.1...v1.0.2) (2026-10-24)
+
+
+### Fixed
+
+* keep Go usage gauges within a consistent row width ([0e88931](https://github.com/davidaayers/opencode-go-usage-plugin/commit/0e889317e8b0bfcd9c86593458e6e60e3901737a))
+
 ## [1.0.1](https://github.com/davidaayers/opencode-go-usage-plugin/compare/v1.0.0...v1.0.1) (2026-10-23)
 
 
