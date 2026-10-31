@@ -10,7 +10,7 @@ OpenCode V2 **CLI-only** plugin showing OpenCode Go plan usage. Source is `src/t
   - Signal updates never propagate to captured frames — a `flag()` flip after mount still renders the mount-time frame. Verify dynamic layouts via **static fixtures** through the exported pure helpers (`GoUsageFormat`), not live state.
   - `createEffect` never fires under the harness's solid server runtime. The plugin kicks its first poll with a direct `untrack(refresh())` call; keep that — don't rely on effects for initial work.
   - The live-slot section of the harness only proves mount + fetch + no-crash, not visual output.
-- Visual changes can't be observed by typecheck alone — render-capture or restart the OpenCode TUI to see them. The real TUI (unlike the harness) does propagate signal updates; the codex usage plugin (`~/development/opencode-codex-usage-plugin`) uses the same signals + `requestRender` pattern successfully.
+- Visual changes can't be observed by typecheck alone — render-capture or restart the OpenCode TUI to see them. The real TUI (unlike the harness) does propagate signal updates; the codex usage plugin (`~/development/personal/opencode/opencode-codex-usage-plugin`) uses the same signals + `requestRender` pattern successfully.
 
 ## Hard constraints
 
